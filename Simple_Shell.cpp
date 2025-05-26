@@ -13,11 +13,13 @@
 std::map<DWORD, std::pair<HANDLE, std::string>> processMap;
 HANDLE foregroundProcess = NULL;
 
+// Kiểm tra args của 1 tiến trình xem có phải là foreground hay không
 bool isForeground(std::vector<std::string> args)
 {
     return (args.back() != "&");
 }
 
+// Kiểm tra file có phải theo batch không
 bool isBatchFile(const std::string &filepath)
 {
     if (filepath.length() < 4)
@@ -30,6 +32,7 @@ bool isBatchFile(const std::string &filepath)
     return (extension == ".bat");
 }
 
+// Xử lý sự kiện Ctrl + C
 BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 {
     if (fdwCtrlType == CTRL_C_EVENT)
@@ -54,6 +57,7 @@ BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
     return FALSE;
 }
 
+// Xóa tiến trình background
 void cleanupBackgroundProcesses()
 {
     for (auto it = processMap.begin(); it != processMap.end();)
@@ -71,6 +75,7 @@ void cleanupBackgroundProcesses()
     }
 }
 
+// Xử lý nhập câu lệnh, chuyển về vector args
 std::vector<std::string> parseCmd(std::string cmd)
 {
     std::vector<std::string> result;
@@ -83,6 +88,7 @@ std::vector<std::string> parseCmd(std::string cmd)
     return result;
 }
 
+// Thực thi câu lệnh (tạo tiến trình)
 void executeCmd(std::vector<std::string> args)
 {
     if (args.empty())
@@ -98,10 +104,12 @@ void executeCmd(std::vector<std::string> args)
     STARTUPINFO si = {sizeof(STARTUPINFO)};
     PROCESS_INFORMATION pi;
 
+    // Chuyển string thành wchar_t
     std::string fullCommand = command + " " + arguments;
     wchar_t cmdLine[256];
     mbstowcs(cmdLine, fullCommand.c_str(), fullCommand.size() + 1);
-
+    
+    // Tạo tiến trình
     if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi))
     {
         std::cout << "[Shell] Process started: " << pi.dwProcessId << "\n";
@@ -114,7 +122,6 @@ void executeCmd(std::vector<std::string> args)
             processMap.erase(pi.dwProcessId);
             foregroundProcess = NULL;
         }
-        // CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
     }
     else
@@ -123,6 +130,7 @@ void executeCmd(std::vector<std::string> args)
     }
 }
 
+// Liệt kê tiến trình
 void listProcess()
 {
     std::cout << "[Shell] List of running background processes:\n";
@@ -160,6 +168,7 @@ void listProcess()
     std::cout << "--------------------------------------------\n";
 }
 
+// Dừng tiến trình
 void stopProcess(DWORD pid)
 {
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -172,6 +181,7 @@ void stopProcess(DWORD pid)
     THREADENTRY32 te;
     te.dwSize = sizeof(THREADENTRY32);
 
+    // Vì hàm SuspendThread cần tham số là hThread nên cần tìm hThread qua pid
     if (Thread32First(hSnapshot, &te))
     {
         do
@@ -213,6 +223,7 @@ void resumeProcess(DWORD pid)
     THREADENTRY32 te;
     te.dwSize = sizeof(THREADENTRY32);
 
+    // Vì hàm ResumeThread cần tham số là hThread nên cần tìm hThread qua pid
     if (Thread32First(hSnapshot, &te))
     {
         do
@@ -242,6 +253,7 @@ void resumeProcess(DWORD pid)
     CloseHandle(hSnapshot);
 }
 
+// Hủy tiến trình
 void killProcess(DWORD pid)
 {
     if (processMap.find(pid) != processMap.end())
@@ -279,6 +291,7 @@ void showDir()
     std::cout << "[Shell] Current directory: " << buffer << std::endl;
 }
 
+// Hàm xử lý với biến môi trường (hiển thị - show, thêm - add)
 void showPath()
 {
     char buffer[256];
@@ -300,6 +313,7 @@ void addPath(std::vector<std::string> args)
     }
 }
 
+// Thực thi file batch
 void executeBatchFile(const std::string &filepath)
 {
     if (!isBatchFile(filepath))
@@ -314,6 +328,7 @@ void executeBatchFile(const std::string &filepath)
     }
 }
 
+// Hiển thị câu lệnh
 void help()
 {
     std::cout << "[Shell] This is a simple shell program" << std::endl;
@@ -333,6 +348,7 @@ void help()
     std::cout << "[Shell] 13. Ctrl+C: stop all foreground processes" << std::endl;
 }
 
+// Thực thi câu lệnh
 void process(std::string cmd)
 {
     std::vector<std::string> args = parseCmd(cmd);
