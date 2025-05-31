@@ -288,11 +288,23 @@ void showPath()
 
 void addPath(std::vector<std::string> args)
 {
+    char buffer[256];
+    buffer[0] = '\0';
+    GetEnvironmentVariableA("PATH", buffer, 256);
+    std::cout << buffer << std::endl;
     if (args.size() == 2)
     {
         std::string path = args[1];
-        SetEnvironmentVariableA("PATH", path.c_str());
-        std::cout << "[Shell] PATH added: " << path << std::endl;
+        if (strlen(buffer) + path.length() + 1 > 255)
+        {
+            std::cerr << "[Shell] PATH too long, cannot add new path\n";
+            return;
+        }
+        if (buffer[0] != '\0')
+            strcat(buffer, ";");
+        strcat(buffer, path.c_str());
+        SetEnvironmentVariableA("PATH", buffer);
+        std::cout << "[Shell] PATH added: " << buffer << std::endl;
     }
     else
     {
