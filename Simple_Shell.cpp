@@ -344,6 +344,7 @@ void help()
     std::cout << "[Shell] 11. addpath <path>: add a path to environment variables" << std::endl;
     std::cout << "[Shell] 12. execute <filepath>: execute a batch file" << std::endl;
     std::cout << "[Shell] 13. Ctrl+C: stop all foreground processes" << std::endl;
+    std::cout << "[Shell] 14: <command> <arguments>; <command> <arguments>: multiple command" << std::endl;
 }
 
 void cleanupBackgroundProcesses()
