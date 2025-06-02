@@ -45,6 +45,7 @@ BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
         else
         {
             std::cout << "\n[Shell] Exitting shell.\n";
+            exit(0);
         }
 
         std::cin.clear();
@@ -52,23 +53,6 @@ BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
         return TRUE;
     }
     return FALSE;
-}
-
-void cleanupBackgroundProcesses()
-{
-    for (auto it = processMap.begin(); it != processMap.end();)
-    {
-        DWORD exitCode;
-        if (GetExitCodeProcess(it->second.first, &exitCode) && exitCode != STILL_ACTIVE)
-        {
-            CloseHandle(it->second.first);
-            it = processMap.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
 }
 
 std::vector<std::string> parseCmd(std::string cmd)
@@ -90,9 +74,14 @@ void executeCmd(std::vector<std::string> args)
 
     std::string command = args[0];
     std::string arguments;
-    for (size_t i = 1; i < args.size(); ++i)
+    for (size_t i = 1; i < args.size() - 1; ++i)
     {
         arguments += args[i] + " ";
+    }
+
+    if (args.back() != "&")
+    {
+        arguments += args.back();
     }
 
     STARTUPINFO si = {sizeof(STARTUPINFO)};
@@ -102,24 +91,36 @@ void executeCmd(std::vector<std::string> args)
     wchar_t cmdLine[256];
     mbstowcs(cmdLine, fullCommand.c_str(), fullCommand.size() + 1);
 
-    if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi))
+    if (isForeground(args))
     {
-        std::cout << "[Shell] Process started: " << pi.dwProcessId << "\n";
-        processMap[pi.dwProcessId] = {pi.hProcess, fullCommand};
-
-        if (isForeground(args))
+        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
         {
+            std::cout << "[Shell] Process started: " << pi.dwProcessId << "\n";
+            processMap[pi.dwProcessId] = {pi.hProcess, fullCommand};
+
             foregroundProcess = pi.hProcess;
             WaitForSingleObject(pi.hProcess, INFINITE);
             processMap.erase(pi.dwProcessId);
             foregroundProcess = NULL;
+            CloseHandle(pi.hThread);
         }
-        // CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        else
+        {
+            std::cerr << "[Shell] Invalid command, error code: " << GetLastError() << "\n";
+        }
     }
     else
     {
-        std::cerr << "[Shell] Invalid command, error code: " << GetLastError() << "\n";
+        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi))
+        {
+            std::cout << "[Shell] Process started: " << pi.dwProcessId << "\n";
+            processMap[pi.dwProcessId] = {pi.hProcess, fullCommand};
+            CloseHandle(pi.hThread);
+        }
+        else
+        {
+            std::cerr << "[Shell] Invalid command, error code: " << GetLastError() << "\n";
+        }
     }
 }
 
@@ -345,7 +346,25 @@ void help()
     std::cout << "[Shell] 13. Ctrl+C: stop all foreground processes" << std::endl;
 }
 
-void process(std::string cmd)
+void cleanupBackgroundProcesses()
+{
+    for (auto it = processMap.begin(); it != processMap.end();)
+    {
+        DWORD exitCode;
+        if (GetExitCodeProcess(it->second.first, &exitCode) && exitCode != STILL_ACTIVE)
+        {
+            killProcess(it->first);
+            CloseHandle(it->second.first);
+            it = processMap.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void processSingle(std::string cmd)
 {
     std::vector<std::string> args = parseCmd(cmd);
     if (args[0] == "help")
@@ -386,7 +405,22 @@ void process(std::string cmd)
     {
         if (args.size() == 2)
         {
-            killProcess(std::stoi(args[1]));
+            if (args[1] == "all")
+            {
+                cleanupBackgroundProcesses();
+                std::cout << "[Shell] All background processes cleaned up.\n";
+            }
+            else
+            {
+                try
+                {
+                    killProcess(std::stoi(args[1]));
+                }
+                catch (const std::invalid_argument &)
+                {
+                    std::cerr << "[Shell] Invalid PID\n";
+                }
+            }
         }
         else
         {
@@ -426,6 +460,19 @@ void process(std::string cmd)
     }
 }
 
+void process(std::string input)
+{
+    std::istringstream iss(input);
+    std::string cmd;
+    while (std::getline(iss, cmd, ';'))
+    {
+        if (!cmd.empty())
+        {
+            processSingle(cmd);
+        }
+    }
+}
+
 int main()
 {
     SetConsoleCtrlHandler(CtrlHandler, TRUE);
@@ -433,7 +480,6 @@ int main()
     std::string input;
     while (1)
     {
-        cleanupBackgroundProcesses();
         std::cout << "myShell> ";
         std::getline(std::cin, input);
         process(input);
