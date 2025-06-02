@@ -93,7 +93,8 @@ void executeCmd(std::vector<std::string> args)
 
     if (isForeground(args))
     {
-        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+        bool isCmd = (args[0] == "cmd.exe" || args[0] == "powershell.exe");
+        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, isCmd ? CREATE_NEW_CONSOLE : 0, NULL, NULL, &si, &pi))
         {
             std::cout << "[Shell] Process started: " << pi.dwProcessId << "\n";
             processMap[pi.dwProcessId] = {pi.hProcess, fullCommand};
@@ -344,7 +345,6 @@ void help()
     std::cout << "[Shell] 11. addpath <path>: add a path to environment variables" << std::endl;
     std::cout << "[Shell] 12. execute <filepath>: execute a batch file" << std::endl;
     std::cout << "[Shell] 13. Ctrl+C: stop all foreground processes" << std::endl;
-    std::cout << "[Shell] 14: <command> <arguments>; <command> <arguments>: multiple command" << std::endl;
 }
 
 void cleanupBackgroundProcesses()
