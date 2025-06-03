@@ -347,16 +347,17 @@ void help()
 
 void cleanupBackgroundProcesses()
 {
-    for (auto it = processMap.begin(); it != processMap.end(); it++)
+    std::vector<DWORD> pidsToKill;
+
+    for (const auto &pair : processMap)
     {
-        DWORD exitCode;
-        if (GetExitCodeProcess(it->second.first, &exitCode) && exitCode == STILL_ACTIVE)
-        {
-            killProcess(it->first);
-            CloseHandle(it->second.first);
-        }
+        pidsToKill.push_back(pair.first);
     }
-    processMap.clear();
+
+    for (DWORD pid : pidsToKill)
+    {
+        killProcess(pid);
+    }
 }
 
 void processSingle(std::string cmd)
