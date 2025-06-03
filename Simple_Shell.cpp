@@ -283,21 +283,19 @@ void showDir()
 
 void showPath()
 {
-    char buffer[256];
-    GetEnvironmentVariableA("PATH", buffer, 256);
+    char buffer[65536];
+    GetEnvironmentVariableA("PATH", buffer, 65536);
     std::cout << "[Shell] Current environment variables: " << buffer << std::endl;
 }
 
 void addPath(std::vector<std::string> args)
 {
-    char buffer[256];
-    buffer[0] = '\0';
-    GetEnvironmentVariableA("PATH", buffer, 256);
-    std::cout << buffer << std::endl;
+    char buffer[65536];
+    GetEnvironmentVariableA("PATH", buffer, 65536);
     if (args.size() == 2)
     {
         std::string path = args[1];
-        if (strlen(buffer) + path.length() + 1 > 255)
+        if (strlen(buffer) + path.length() + 1 > 65536)
         {
             std::cerr << "[Shell] PATH too long, cannot add new path\n";
             return;
@@ -352,8 +350,11 @@ void cleanupBackgroundProcesses()
     for (auto it = processMap.begin(); it != processMap.end(); it++)
     {
         DWORD exitCode;
-        killProcess(it->first);
-        CloseHandle(it->second.first);
+        if (GetExitCodeProcess(it->second.first, &exitCode) && exitCode == STILL_ACTIVE)
+        {
+            killProcess(it->first);
+            CloseHandle(it->second.first);
+        }
     }
     processMap.clear();
 }
