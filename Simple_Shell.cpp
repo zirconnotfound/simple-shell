@@ -349,20 +349,13 @@ void help()
 
 void cleanupBackgroundProcesses()
 {
-    for (auto it = processMap.begin(); it != processMap.end();)
+    for (auto it = processMap.begin(); it != processMap.end(); it++)
     {
         DWORD exitCode;
-        if (GetExitCodeProcess(it->second.first, &exitCode) && exitCode != STILL_ACTIVE)
-        {
-            killProcess(it->first);
-            CloseHandle(it->second.first);
-            it = processMap.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
+        killProcess(it->first);
+        CloseHandle(it->second.first);
     }
+    processMap.clear();
 }
 
 void processSingle(std::string cmd)
