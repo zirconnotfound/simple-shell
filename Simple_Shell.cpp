@@ -9,6 +9,9 @@
 #include <map>
 #include <signal.h>
 #include <tlhelp32.h>
+#include <algorithm>
+#include <fstream>
+#include <cstdlib>
 
 std::map<DWORD, std::pair<HANDLE, std::string>> processMap;
 HANDLE foregroundProcess = NULL;
@@ -28,6 +31,18 @@ bool isBatchFile(const std::string &filepath)
         c = tolower(c);
 
     return (extension == ".bat");
+}
+
+bool isComment(const std::string &line)
+{
+    std::string trimmed = line;
+    trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+
+    return trimmed.empty() ||
+           (trimmed.size() >= 3 && trimmed.compare(0, 3, "REM") == 0) ||
+           (trimmed.size() >= 2 && trimmed.compare(0, 2, "::") == 0);
 }
 
 BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
@@ -321,8 +336,26 @@ void executeBatchFile(const std::string &filepath)
     }
     else
     {
-        std::string command = "cmd.exe /c " + filepath;
-        executeCmd(parseCmd(command));
+        std::ifstream file(filepath);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open batch file.\n";
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+
+        if (isComment(line)) continue;
+
+        std::cout << "Executing: " << line << "\n";
+        int result = system(line.c_str());
+        if (result != 0) {
+            std::cerr << "Command failed with code: " << result << "\n";
+        }
+    }
+
+    file.close();
     }
 }
 
